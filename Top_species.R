@@ -98,6 +98,7 @@ createDifferenceBetweenPairs <- function(df,Pair){
     summarise_if(is.numeric, function(x) x[2] - x[1])
 }
 
+# Get the top N species and choose whether to filter out contaminants
 getTopSpecies <- function(df, N, metadata, includeNegsKit=TRUE,includeNegsWater=TRUE,includeContams=TRUE,includeHuman=TRUE, includeDecontam = TRUE, report_percentage=TRUE){
   exclude_columns <- c()
   if (!includeContams){
