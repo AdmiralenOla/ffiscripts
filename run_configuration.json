@@ -1,0 +1,52 @@
+{
+  "title": "MPOX run 2023-10-17",
+  "basecalledPath": "fastq_pass",
+  "clearAnnotated": "true",
+  "samples": [
+    {
+      "name": "BC01",
+      "description": "",
+      "barcodes": [ "barcode01" ]
+    },
+    {
+      "name": "BC02",
+      "description": "",
+      "barcodes": [ "barcode02" ]
+    },
+    {
+      "name": "BC03",
+      "description": "",
+      "barcodes": [ "barcode03" ]
+    },
+    {
+      "name": "BC04",
+      "description": "",
+      "barcodes": [ "barcode04" ]
+    },
+    {
+      "name": "BC05",
+      "description": "",
+      "barcodes": [ "barcode05" ]
+    },
+    {
+      "name": "BC06",
+      "description": "",
+      "barcodes": [ "barcode06" ]
+    },
+    {
+      "name": "BC07",
+      "description": "",
+      "barcodes": [ "barcode07" ]
+    },
+    {
+      "name": "BC08",
+      "description": "",
+      "barcodes": [ "barcode08" ]
+    },
+    {
+      "name": "Negative control",
+      "description": "",
+      "barcodes": [ "barcode09" ]
+    }
+  ]
+}
