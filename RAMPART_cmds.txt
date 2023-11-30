@@ -1,3 +1,0 @@
-## RAMPART COMMANDLINE
-
-rampart --protocol /home/ubuntu/Documents/Rampart/MPOX_protocol --basecalledPath /var/lib/minknow/data/REFBIO_MPOX_2023_BALANCING_2/no_sample/20231017_1013_MN29786_FAX00395_5a4bf19d/ --clearAnnotated --annotatedPath ./annotations
