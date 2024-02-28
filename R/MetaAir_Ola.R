@@ -150,7 +150,7 @@ metaair_taxa_names <- read_tsv("/media/ubuntu/Pandora/METAAIR/taxid_to_name_2023
 translation <- metaair_taxa_names$name[match(colnames(metaair)[2:ncol(metaair)],metaair_taxa_names$taxonomy_id)]
 colnames(metaair) <-  c("sample",translation)
 
-metaair_meta <- read_tsv("/media/ubuntu/Pandora/METAAIR/META/Metadata_metaair_final.tsv",col_names = TRUE,col_types = "lcffffddfffdddiiddDDD") # Exclude ID Year Type City Station lat long station groundlevel closedopen temp relhumidrawreads cleanreads percremoved coverage samplingdate isoldate filterdate
+metaair_meta <- read_tsv("/media/ubuntu/Pandora/METAAIR/META/Metadata_metaair_final.tsv",col_names = TRUE,col_types = "clffffddfffdddiiddddiididid") # ID Exclude Year Type City Station lat long station groundlevel closedopen temp relhumidrawreads cleanreads percremoved coverage percunclassifiedncbi percunclassifiedfbav2 classifiedreads contamreads contamperc contamreadsbac contampercbac contamreadsfungi contampercfungi
 metaair_meta_posremoved <- metaair_meta %>% filter(!(ID %in% POS_CTRLS_METAAIR))
 metaair_meta_posremoved_negremoved <- metaair_meta %>% filter(!(ID %in% CTRLS_METAAIR))
 metaair_meta_posremoved_negremoved_filtered <- metaair_meta_posremoved_negremoved %>% filter(!EXCLUDE)
@@ -171,6 +171,33 @@ names(metaair_final)[1] <- "ID"
 ################################
 #     ANALYSIS                 #
 ################################
+
+
+## FIGURES CONCERNING WHAT'S REMOVED
+# DO STACKED BARCHARTS WITH PERC CONTAMINATION
+# PER YEAR TOTAL + PER YEAR-CITY
+
+# Need to create long-data first
+contam_df <- metaair_meta_posremoved_negremoved_filtered
+contam_df$CLASSIFIEDPERC <- 100 - contam_df$CONTAMPERC
+contam_df_long <- contam_df %>%
+  pivot_longer(cols = c(CLASSIFIEDPERC,CONTAMBACPERC,CONTAMFUNGIPERC),names_to="CONTAMTYPE", values_to = "CONTAMVALUEPERC")
+
+contam_df_plot <- contam_df_long %>% summarise(mean(CONTAMVALUEPERC), .by=c(CONTAMTYPE,CITY,YEAR))
+names(contam_df_plot)[4] <- "CONTAMVALUEPERC"
+contam_df_plot$CONTAMTYPE[contam_df_plot$CONTAMTYPE == "CLASSIFIEDPERC"] <- "Retained"
+contam_df_plot$CONTAMTYPE[contam_df_plot$CONTAMTYPE == "CONTAMBACPERC"] <- "Bacterial contam."
+contam_df_plot$CONTAMTYPE[contam_df_plot$CONTAMTYPE == "CONTAMFUNGIPERC"] <- "Fungal contam."
+contam_df_plot$CITY <- factor(contam_df_plot$CITY, levels=c("Denver","Hong Kong", "London","New York","Oslo","Stockholm"))
+#contam_df_long$GROUPS <- interaction(metaair_meta_posremoved_negremoved_filtered$CITY, metaair_meta_posremoved_negremoved_filtered$YEAR)
+
+ggplot(contam_df_plot, aes(fill=CONTAMTYPE, y=CONTAMVALUEPERC,x=interaction(CITY,YEAR,lex.order=TRUE,drop=TRUE, sep=" ") )) + #x=interaction(CITY,YEAR,lex.order=TRUE)
+  geom_bar(position="stack", stat="identity") + xlab("CITY") + ylab("Percentage") + labs(fill="Read was") + 
+  theme(axis.text.x = element_text(angle=45))
+
+
+
+
 
 # BETA-DIVERSITY WORKS GREAT - VERY GOOD SIGNAL FROM CITY
 umap.meta <- umap(metaair_final %>% select(where(is.numeric)),n_neighbors=8,min_dist=0.1)
@@ -1167,6 +1194,51 @@ ggplot(ck_df, aes(fill=ck_kingdom, y=ck_perc, x=ck_city)) +
   geom_bar(position="stack", stat="identity") + xlab("City") + ylab("Percentage") + labs(fill="Kingdom")
 
 
+#######################
+# FIG 1 CROSS-KINGDOM #
+#     (NCBInr db)     #
+#######################
+
+# NOTE - Total and 2019 needs to be redone, Elements messing around.
+# Order: Total, 2017, 2018, 2019
+# NB - These numbers were not normalized! Redone below
+# ck_unclass_fig1 <- c(23.25,19.53,22.44,24.53)
+# ck_bact_fig1 <- c(60.67,70.10,62.29,57.90)
+# ck_archaea_fig1 <- c(0.47, 0.35,0.51,0.44)
+# ck_fungi_fig1 <- c(9.30,5.03,8.69,10.42)
+# ck_metazoa_fig1 <- c(2.63,2.22,2.58,2.74)
+# ck_viruses_fig1 <- c(0.21,0.20,0.21,0.22)
+# ck_plantae_fig1 <- c(2.18,1.71,2.05,2.38)
+# ck_othereuk_fig1 <- c(1.28, 0.86,1.23,1.38)
+ck_unclass_fig1 <- c(21.80,20.08,21.70,23.71)
+ck_bact_fig1 <- c(64.23,69.31,63.71,59.46)
+ck_archaea_fig1 <- c(0.43, 0.36,0.49,0.43)
+ck_fungi_fig1 <- c(7.68,5.08,8.17,9.89)
+ck_metazoa_fig1 <- c(2.52,2.30,2.56,2.71)
+ck_viruses_fig1 <- c(0.22,0.20,0.21,0.24)
+ck_plantae_fig1 <- c(1.98,1.78,1.96,2.22)
+ck_othereuk_fig1 <- c(1.14, 0.88,1.20,1.33)
+
+ck_category_fig1 <- c("Total","2017","2018","2019")
+
+ck_palette_8 <- c('#bdbdbd','#6b6ecf', '#d6616b', '#de9ed6', '#637939', '#8ca252', '#b5cf6b','#cedb9c')
+
+fig1_df <- data.frame(Unclassified=ck_unclass_fig1, 
+                      Bacteria=ck_bact_fig1, 
+                      Archaea=ck_archaea_fig1,
+                      Fungi=ck_fungi_fig1,
+                      Metazoa=ck_metazoa_fig1, 
+                      Viruses=ck_viruses_fig1, 
+                      Plants=ck_plantae_fig1,
+                      Other_Eukaryotes=ck_othereuk_fig1,
+                      Year=ck_category_fig1)
+fig1_df_long <- pivot_longer(fig1_df,cols = c(Unclassified,Bacteria,Archaea,Fungi,Metazoa,Viruses,Plants,Other_Eukaryotes))
+fig1_df_long$name[fig1_df_long$name=="Other_Eukaryotes"] <- "Other Eukaryotes"
+fig1_df_long$name <- factor(fig1_df_long$name,levels = c("Unclassified","Bacteria","Archaea","Viruses","Fungi","Metazoa","Plants","Other Eukaryotes"))
+ggplot(fig1_df_long, aes(x=Year,y=value,fill=name)) + 
+  geom_bar(position="stack",stat="identity") +xlab("Year") +ylab("Percentage") + labs(fill="Classification") +
+  scale_fill_manual(values=ck_palette_8)
+
 ## TOP SPECIES ##
 
 trim_topspecies_data <- function(master,subset){
@@ -1186,13 +1258,13 @@ add_remaining <- function(df,city){
 
 top20.bac.colors <- c('#999999','#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5')
 
-top20_all <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/data_all_RESULTS.tsv")
-top20_all_denver <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/denver_all_RESULTS.tsv")
-top20_all_hk <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/hk_all_RESULTS.tsv")
-top20_all_london <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/london_all_RESULTS.tsv")
-top20_all_ny <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/ny_all_RESULTS.tsv")
-top20_all_oslo <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/oslo_all_RESULTS.tsv")
-top20_all_stockholm <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/stockholm_all_RESULTS.tsv")
+top20_all <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/data_all_RESULTS.tsv")
+top20_all_denver <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/denver_all_RESULTS.tsv")
+top20_all_hk <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/hk_all_RESULTS.tsv")
+top20_all_london <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/london_all_RESULTS.tsv")
+top20_all_ny <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/ny_all_RESULTS.tsv")
+top20_all_oslo <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/oslo_all_RESULTS.tsv")
+top20_all_stockholm <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/stockholm_all_RESULTS.tsv")
 
 top20_all_full <- add_remaining(top20_all,"Total")
 top20_all_denver_full <- add_remaining(trim_topspecies_data(top20_all,top20_all_denver),"Denver")
@@ -1211,16 +1283,16 @@ ggplot(top20_all_df, aes(fill=relevel(factor(`...1`),ref="Other"), y=Percentage_
 
 
 # Read master data Bacteria and define which top species get colors
-top20_bac <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/data_all_bacteria_RESULTS.tsv")
+top20_bac <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/data_all_bacteria_RESULTS.tsv")
 
 # Read in all other city bacteria datasets
 # Note, I have solved this by printing the top 4000/1000 species for all data sets except master in OVERALL
-top20_bac_denver <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/denver_all_bacteria_RESULTS.tsv")
-top20_bac_hk <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/hk_all_bacteria_RESULTS.tsv")
-top20_bac_london <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/london_all_bacteria_RESULTS.tsv")
-top20_bac_ny <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/ny_all_bacteria_RESULTS.tsv")
-top20_bac_oslo <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/oslo_all_bacteria_RESULTS.tsv")
-top20_bac_stockholm <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/stockholm_all_bacteria_RESULTS.tsv")
+top20_bac_denver <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/denver_all_bacteria_RESULTS.tsv")
+top20_bac_hk <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/hk_all_bacteria_RESULTS.tsv")
+top20_bac_london <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/london_all_bacteria_RESULTS.tsv")
+top20_bac_ny <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/ny_all_bacteria_RESULTS.tsv")
+top20_bac_oslo <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/oslo_all_bacteria_RESULTS.tsv")
+top20_bac_stockholm <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/stockholm_all_bacteria_RESULTS.tsv")
 
 top20_bac_full <- add_remaining(top20_bac,"Total")
 top20_bac_denver_full <- add_remaining(trim_topspecies_data(top20_bac,top20_bac_denver),"Denver")
@@ -1238,16 +1310,16 @@ ggplot(top20_bac_df, aes(fill=relevel(factor(`...1`),ref="Other"), y=Percentage_
 
 
 ## FUNGI
-top20_fungi <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/data_all_fungi_RESULTS.tsv")
+top20_fungi <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/data_all_fungi_RESULTS.tsv")
 
 # Read in all other city bacteria datasets
 # Note, I have solved this by printing the top 4000/1000 species for all data sets except master in OVERALL
-top20_fungi_denver <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/denver_all_fungi_RESULTS.tsv")
-top20_fungi_hk <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/hk_all_fungi_RESULTS.tsv")
-top20_fungi_london <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/london_all_fungi_RESULTS.tsv")
-top20_fungi_ny <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/ny_all_fungi_RESULTS.tsv")
-top20_fungi_oslo <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/oslo_all_fungi_RESULTS.tsv")
-top20_fungi_stockholm <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM/OVERALL/stockholm_all_fungi_RESULTS.tsv")
+top20_fungi_denver <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/denver_all_fungi_RESULTS.tsv")
+top20_fungi_hk <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/hk_all_fungi_RESULTS.tsv")
+top20_fungi_london <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/london_all_fungi_RESULTS.tsv")
+top20_fungi_ny <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/ny_all_fungi_RESULTS.tsv")
+top20_fungi_oslo <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/oslo_all_fungi_RESULTS.tsv")
+top20_fungi_stockholm <- read_tsv("/media/ubuntu/Pandora/METAAIR/CROSSKINGDOM_FIG4/OVERALL/stockholm_all_fungi_RESULTS.tsv")
 
 top20_fungi_full <- add_remaining(top20_fungi,"Total")
 top20_fungi_denver_full <- add_remaining(trim_topspecies_data(top20_fungi,top20_fungi_denver),"Denver")
@@ -1263,6 +1335,251 @@ ggplot(top20_fungi_df, aes(fill=relevel(factor(`...1`),ref="Other"), y=Percentag
   geom_bar(position="stack", stat="identity") + xlab("City") + ylab("Percentage") + labs(fill="Species") +
   scale_fill_manual(values=top20.bac.colors)
 
+########################################
+# TOP 20 FIGURES, BUT FOR CONTAMINANTS #
+########################################
+
+contam_bac <- read_tsv("/media/ubuntu/Pandora/METAAIR/AGGREGATED_USE/AGGREGATED_CONTAMINANTSONLY_BAC.tsv",col_names=TRUE)
+contam_fungi <- read_tsv("/media/ubuntu/Pandora/METAAIR/AGGREGATED_USE/AGGREGATED_CONTAMINANTSONLY_FUNGI.tsv",col_names=TRUE)
+
+contam_bac <- transpose_df(contam_bac)
+colnames(contam_bac) <- contam_bac[1,]
+contam_bac <- contam_bac[2:nrow(contam_bac),]
+colnames(contam_bac)[1] <- "sample"
+contam_fungi <- transpose_df(contam_fungi)
+colnames(contam_fungi) <- contam_fungi[1,]
+contam_fungi <- contam_fungi[2:nrow(contam_fungi),]
+colnames(contam_fungi)[1] <- "sample"
+
+#metaair_taxa_names <- read_tsv("/media/ubuntu/Pandora/METAAIR/taxid_to_name_2023-11-07.tsv")
+translation_bac <- metaair_taxa_names$name[match(colnames(contam_bac)[2:ncol(contam_bac)],metaair_taxa_names$taxonomy_id)]
+translation_fungi <- metaair_taxa_names$name[match(colnames(contam_fungi)[2:ncol(contam_fungi)],metaair_taxa_names$taxonomy_id)]
+colnames(contam_bac) <-  c("sample",translation_bac)
+colnames(contam_fungi) <- c("sample", translation_fungi)
+
+contam_bac_norm <- normalize_TSS_OTU_data(contam_bac)
+contam_fungi_norm <- normalize_TSS_OTU_data(contam_fungi)
+# TAKING LOG TSS COUNTS INSTEAD OF RAW
+contam_bac_log <- bind_cols(contam_bac_norm %>% select(sample), contam_bac_norm %>% select(where(is.numeric)) %>% mutate(log(.+1)))
+contam_fungi_log <- bind_cols(contam_fungi_norm %>% select(sample), contam_fungi_norm %>% select(where(is.numeric)) %>% mutate(log(.+1)))
+contam_bac_log_var <- drop_constant_cols(contam_bac_log)
+contam_fungi_log_var <- drop_constant_cols(contam_fungi_log)
+
+contam_bac_final <- contam_bac_log_var %>% filter(!(sample %in% CTRLS_METAAIR)) %>% filter(!(sample %in% FILTER))
+names(contam_bac_final)[1] <- "ID"
+contam_fungi_final <- contam_fungi_log_var %>% filter(!(sample %in% CTRLS_METAAIR)) %>% filter(!(sample %in% FILTER))
+names(contam_fungi_final)[1] <- "ID"
+
+# Need:
+# Top 20 species total
+# Data frame with NAME, PERCENTAGE_OF_TOTAL, CITY AND POSSIBLY YEAR
+
+getTopSpeciesSimple <- function(df, N=20, Species=NULL,City, Year){
+  # CALCULATE ROWSUMS
+  df <- df %>%
+    mutate(rowSums = select(.,-ID) %>% rowSums(.))
+  Prevalence <- df %>%
+    reframe(Prevalence = colSums(select(.,-ID,-rowSums) != 0) / (nrow(.))) %>% unlist()
+  #print(names(Prevalence))
+  #print(Prevalence)
+  #print(names(df %>% select(.,-ID,-rowSums)))
+  names(Prevalence) <- names(df %>% select(.,-ID,-rowSums))
+  if (is.null(Species)){
+    top_species_group <- df %>%
+      summarise(across(where(is.numeric), ~sum(.) / sum(rowSums) )) %>% #.names = "{.col}_Percentage"
+      select(-rowSums) %>%
+      unlist() %>%
+      sort(decreasing=TRUE) %>%
+      head(N)
+  }
+  else {
+    top_species_group <- df %>%
+    summarise(across(where(is.numeric), ~sum(.) / sum(rowSums) )) %>%
+    select(-rowSums) %>%
+    select(all_of(Species[1:20])) %>%
+    unlist()
+  }
+  # ADD PREVALENCE
+  Prevalence_to_add <- as.vector(Prevalence[names(top_species_group)])
+  Prevalence_to_add <- c(Prevalence_to_add,1.0)
+  names(Prevalence_to_add)[length(Prevalence_to_add)] <- "Other"
+  #species_to_get_data_for <- names(top_species_group)
+  top_species_group <- addOtherSpecies(top_species_group) # <- Drop this if we don't want the "other" category)
+  results <- data.frame(Percentage_of_total=top_species_group, Species=names(top_species_group),City=City,Year=Year,Prevalence=Prevalence_to_add)
+  
+  #results <- reOrderDataForPlot(results)
+
+  return(as_tibble(results))
+}
+
+contam_bac_final_fig <- getTopSpeciesSimple(contam_bac_final,N=20,City="Combined",Year="All Years")
+master_species_bac <- contam_bac_final_fig$Species
+
+for (city in c("Denver","Hong Kong","London","New York", "Oslo","Stockholm")){
+  new <- getTopSpeciesSimple(contam_bac_final %>% filter(ID %in% (metaair_meta %>% filter(CITY == city)  %>% pull(ID))),City=city,Year="All years",Species=master_species_bac)
+  contam_bac_final_fig <- bind_rows(contam_bac_final_fig,new)
+}
+
+
+ggplot(contam_bac_final_fig, aes(fill=relevel(factor(Species),ref="Other"), y=Percentage_of_total, x=City)) + 
+  geom_bar(position="stack", stat="identity") + xlab("City") + ylab("Percentage") + labs(fill="Species") +
+  scale_fill_manual(values=top20.bac.colors) + theme(axis.text.x = element_text(angle=45))
+
+
+
+
+contam_fungi_final_fig <- getTopSpeciesSimple(contam_fungi_final,N=20,City="Combined",Year="All Years")
+master_species_fungi <- contam_fungi_final_fig$Species
+
+for (city in c("Denver","Hong Kong","London","New York", "Oslo","Stockholm")){
+  new <- getTopSpeciesSimple(contam_fungi_final %>% filter(ID %in% (metaair_meta %>% filter(CITY == city)  %>% pull(ID))),City=city,Year="All years",Species=master_species_fungi)
+  contam_fungi_final_fig <- bind_rows(contam_fungi_final_fig,new)
+}
+
+ggplot(contam_fungi_final_fig, aes(fill=relevel(factor(Species),ref="Other"), y=Percentage_of_total, x=City)) + 
+  geom_bar(position="stack", stat="identity") + xlab("City") + ylab("Percentage") + labs(fill="Species") +
+  scale_fill_manual(values=top20.bac.colors) + theme(axis.text.x = element_text(angle=45))
+
+
+#############################################
+# ABUNDANCE PLOTS CONTROLS BEFORE AND AFTER #
+#############################################
+
+NEG_CTRLS_METAAIR <- c("SL335732","SL335733","SL335734","SL335735","SL335736","SL335737","SL335738","SL335754","SL470202","SL470204","SL470208","SL470276","SL470277","SL470278","SL470279","SL470294","SL470295","SL470297","SL470298","SL470335","SL470337","SL470338")
+POS_CTRLS_METAAIR <- c("SL335740","SL335741","SL470280","SL470281","SL470339")
+
+getTopSpeciesCtrls <- function(df, N=20, Species=NULL,Samplename="",absolute=TRUE){
+  # CALCULATE ROWSUMS
+  df <- df %>%
+    mutate(rowSums = select(.,-ID) %>% rowSums(.))
+  
+  if (is.null(Species)){
+    top_species_group <- df %>%
+      summarise(across(where(is.numeric), ~sum(.) / sum(rowSums) )) %>% #.names = "{.col}_Percentage"
+      select(-rowSums) %>%
+      unlist() %>%
+      sort(decreasing=TRUE) %>%
+      head(N)
+    top_species_group <- addOtherSpecies(top_species_group)
+  }
+  else {
+    if (absolute){
+      top_species_group <- df %>%
+        summarise(across(where(is.numeric), ~sum(.) )) %>%
+        select(-rowSums) %>%
+        select(all_of(Species[1:20])) %>%
+        unlist()
+      top_species_group <- c(top_species_group,df$rowSums)
+      names(top_species_group)[length(top_species_group)] <- "Other"
+      }
+    else{
+      top_species_group <- df %>%
+        summarise(across(where(is.numeric), ~sum(.) / sum(rowSums) )) %>%
+        select(-rowSums) %>%
+        select(all_of(Species[1:20])) %>%
+        unlist()
+      top_species_group <- addOtherSpecies(top_species_group)
+    }
+  }
+  
+
+  results <- data.frame(Percentage_of_total=top_species_group, Species=names(top_species_group),Name=Samplename)
+  return(as_tibble(results))
+}
+
+metaair_with_kitome <- read_tsv(file="/media/ubuntu/Pandora/METAAIR/AGGREGATED_0.005_.tsv",col_names = TRUE)
+metaair_with_kitome <- transpose_df(metaair_with_kitome)
+colnames(metaair_with_kitome) <- metaair_with_kitome[1,]
+metaair_with_kitome <- metaair_with_kitome[2:nrow(metaair_with_kitome),]
+# metaair_taxa_names <- read_tsv("/media/ubuntu/Pandora/METAAIR/taxid_to_name_2023-11-07.tsv")
+# translation <- metaair_taxa_names$name[match(colnames(metaair)[2:ncol(metaair)],metaair_taxa_names$taxonomy_id)]
+colnames(metaair_with_kitome) <-  c("sample",translation)
+
+metaair_without_kitome <- read_tsv(file="/media/ubuntu/Pandora/METAAIR/AGGREGATED_0.005_NEGSREMOVED_.tsv",col_names = TRUE)
+metaair_without_kitome <- transpose_df(metaair_without_kitome)
+colnames(metaair_without_kitome) <- metaair_without_kitome[1,]
+metaair_without_kitome <- metaair_without_kitome[2:nrow(metaair_without_kitome),]
+# metaair_taxa_names <- read_tsv("/media/ubuntu/Pandora/METAAIR/taxid_to_name_2023-11-07.tsv")
+# translation <- metaair_taxa_names$name[match(colnames(metaair)[2:ncol(metaair)],metaair_taxa_names$taxonomy_id)]
+colnames(metaair_without_kitome) <-  c("sample",translation)
+
+# NOTE - CONSIDER DOING THIS WITHOUT NORMALIZATION - SHOW ACTUAL ABUNDANCE PRIOR TO NORM
+
+#metaair_with_kitome_norm <- normalize_TSS_OTU_data(metaair_with_kitome)
+#metaair_with_kitome_log <- bind_cols(metaair_with_kitome_norm %>% select(sample), metaair_with_kitome_norm %>% select(where(is.numeric)) %>% mutate(log(.+1)))
+#metaair_with_kitome_log_var <- drop_constant_cols(metaair_with_kitome_log)
+
+metaair_negctrls_kitome <- metaair_with_kitome %>% filter(sample %in% NEG_CTRLS_METAAIR)
+metaair_posctrls_kitome <- metaair_with_kitome %>% filter(sample %in% POS_CTRLS_METAAIR)
+
+metaair_negctrls_no_kitome <- metaair_without_kitome %>% filter(sample %in% NEG_CTRLS_METAAIR)
+metaair_posctrls_no_kitome <- metaair_without_kitome %>% filter(sample %in% POS_CTRLS_METAAIR)
+#names(metaair_final)[1] <- "ID"
+names(metaair_negctrls_kitome)[1] <- "ID"
+names(metaair_posctrls_kitome)[1] <- "ID"
+names(metaair_negctrls_no_kitome)[1] <- "ID"
+names(metaair_posctrls_no_kitome)[1] <- "ID"
+
+#### NEGATIVES - KTIOME NOT EXCLUDED
+metaair_negctrls_kitome_fig <- getTopSpeciesCtrls(metaair_negctrls_kitome,N=20,Samplename = "COMBINED",absolute = FALSE)
+master_species_negctrls_kitome <- metaair_negctrls_kitome_fig$Species
+
+#NOTE - In absolute count mode, the "COMBINED" level should not really be included.
+
+for (s in NEG_CTRLS_METAAIR){
+  new <- getTopSpeciesCtrls(metaair_negctrls_kitome %>% filter(ID == s),Samplename=s,Species=master_species_negctrls_kitome,absolute=TRUE)
+  metaair_negctrls_kitome_fig <- bind_rows(metaair_negctrls_kitome_fig,new)
+}
+
+ggplot(metaair_negctrls_kitome_fig %>% filter(Name != "COMBINED"), aes(fill=relevel(factor(Species),ref="Other"), y=Percentage_of_total, x=Name)) + 
+  geom_bar(position="stack", stat="identity") + xlab("Sample") + ylab("Read counts") + labs(fill="Species") +
+  scale_fill_manual(values=top20.bac.colors) + theme(axis.text.x = element_text(angle=45))
+
+
+
+#### NEGATIVES _ KITOME EXCLUDED
+# USE THE SAME SPECIES AS WITH KITOME
+metaair_negctrls_kitome_fig <- getTopSpeciesCtrls(metaair_negctrls_kitome,N=20,Samplename = "COMBINED",absolute = FALSE)
+master_species_negctrls_kitome <- metaair_negctrls_kitome_fig$Species
+
+for (s in NEG_CTRLS_METAAIR){
+  new <- getTopSpeciesCtrls(metaair_negctrls_no_kitome %>% filter(ID == s),Samplename=s,Species=master_species_negctrls_kitome,absolute=TRUE)
+  metaair_negctrls_kitome_fig <- bind_rows(metaair_negctrls_kitome_fig,new)
+}
+
+ggplot(metaair_negctrls_kitome_fig %>% filter(Name != "COMBINED"), aes(fill=relevel(factor(Species),ref="Other"), y=Percentage_of_total, x=Name)) + 
+  geom_bar(position="stack", stat="identity") + xlab("Sample") + ylab("Read counts") + labs(fill="Species") +
+  scale_fill_manual(values=top20.bac.colors) + theme(axis.text.x = element_text(angle=45))
+
+
+## POSITIVES - WITH KITOME
+metaair_posctrls_kitome_fig <- getTopSpeciesCtrls(metaair_posctrls_kitome,N=20,Samplename = "COMBINED",absolute = FALSE)
+master_species_posctrls_kitome <- metaair_posctrls_kitome_fig$Species
+
+for (s in POS_CTRLS_METAAIR){
+  new <- getTopSpeciesCtrls(metaair_posctrls_kitome %>% filter(ID == s),Samplename=s,Species=master_species_posctrls_kitome,absolute=TRUE)
+  metaair_posctrls_kitome_fig <- bind_rows(metaair_posctrls_kitome_fig,new)
+}
+
+ggplot(metaair_posctrls_kitome_fig %>% filter(Name != "COMBINED"), aes(fill=relevel(factor(Species),ref="Other"), y=Percentage_of_total, x=Name)) + 
+  geom_bar(position="stack", stat="identity") + xlab("Sample") + ylab("Read counts") + labs(fill="Species") +
+  scale_fill_manual(values=top20.bac.colors) + theme(axis.text.x = element_text(angle=45))
+
+## POSITIVES - WITHOUT KITOME
+# USE SAME SPECIES AS WITH KITOME
+metaair_posctrls_kitome_fig <- getTopSpeciesCtrls(metaair_posctrls_kitome,N=20,Samplename = "COMBINED",absolute = FALSE)
+master_species_posctrls_kitome <- metaair_posctrls_kitome_fig$Species
+
+for (s in POS_CTRLS_METAAIR){
+  new <- getTopSpeciesCtrls(metaair_posctrls_no_kitome %>% filter(ID == s),Samplename=s,Species=master_species_posctrls_kitome,absolute=TRUE)
+  metaair_posctrls_kitome_fig <- bind_rows(metaair_posctrls_kitome_fig,new)
+}
+
+ggplot(metaair_posctrls_kitome_fig %>% filter(Name != "COMBINED"), aes(fill=relevel(factor(Species),ref="Other"), y=Percentage_of_total, x=Name)) + 
+  geom_bar(position="stack", stat="identity") + xlab("Sample") + ylab("Read counts") + labs(fill="Species") +
+  scale_fill_manual(values=top20.bac.colors) + theme(axis.text.x = element_text(angle=45))
+
+
 
 # SOME OTHER USEFUL PLOTS
 
@@ -1276,8 +1593,8 @@ ggplot(data=metaair_meta_posremoved_negremoved_filtered,aes(x=CLEANPEREADS,y=COV
 
 # UNCOMMENT TO REDO KARI FILES
 # metaair_meta_kari <- metaair_meta_posremoved_negremoved_filtered_underground
-# metaair <- read_tsv("/media/ubuntu/Pandora/METAAIR/AGGREGATED_USE/AGGREGATED_0.005_NEGSREMOVED_POSCTRLSREMOVED_.tsv",col_names=TRUE)
-# metaair_kari <- metaair %>% select(taxonomy_id, metaair_meta_kari$ID)
+# metaair_kari_countdata <- read_tsv("/media/ubuntu/Pandora/METAAIR/AGGREGATED_USE/AGGREGATED_0.005_NEGSREMOVED_POSCTRLSREMOVED_.tsv",col_names=TRUE)
+# metaair_kari <- metaair_kari_countdata %>% select(taxonomy_id, metaair_meta_kari$ID)
 # 
 # denver <- metaair_meta_kari %>% filter(CITY == "Denver") %>% pull(ID)
 # denver_17 <- metaair_meta_kari %>% filter(CITY == "Denver" & YEAR == 2017) %>% pull(ID)
@@ -1360,3 +1677,25 @@ ggplot(data=metaair_meta_posremoved_negremoved_filtered,aes(x=CLEANPEREADS,y=COV
 # write_tsv(x=metaair_kari_17, file="/media/ubuntu/Pandora/KARI_ALL/METAAIR_UNDERGROUND/total_17.tsv")
 # write_tsv(x=metaair_kari_18, file="/media/ubuntu/Pandora/KARI_ALL/METAAIR_UNDERGROUND/total_18.tsv")
 # write_tsv(x=metaair_kari_19, file="/media/ubuntu/Pandora/KARI_ALL/METAAIR_UNDERGROUND/total_19.tsv")
+
+# metaair_kari_notdenver <- metaair_final_ %>% filter(ID %in% (metaair_meta_kari %>% filter(!CITY == "Denver") %>% pull(ID)))
+# NOTE - UMAP performed on matrix where rows are samples and columns are species, not other way around
+
+# umap.kari.notdenver.meta <- umap(metaair_kari_notdenver %>% select(where(is.numeric)),n_neighbors=8,min_dist=0.1)
+# umap.meta.kari.notdenver.layout <- umap.kari.notdenver.meta[["layout"]] 
+# umap.meta.kari.notdenver.layout <- data.frame(umap.meta.kari.notdenver.layout, "ID"=metaair_kari_notdenver$ID) 
+# umap.meta.kari.notdenver.layout <- inner_join(umap.meta.kari.notdenver.layout, metaair_meta_posremoved_negremoved_filtered)
+#umap.meta.layout <- cbind(umap.meta.layout, metaair_meta %>% filter (!(ID %in% CTRLS_METAAIR))) 
+
+# fig.umap.meta.notdenver <- plot_ly(umap.meta.kari.notdenver.layout, x = ~X1, y = ~X2, color=~CITY, symbol = ~YEAR, type = 'scatter', mode = 'markers', size=10,
+#                         text = ~ID, hovertemplate=paste(
+#                           "<b>%{text}</b><br><br>",
+#                           "%{x}, %{y}")) %>%
+#  layout(
+#    plot_bgcolor = "#e5ecf6",
+#    legend=list(title=list(text='Sample type')), 
+#    xaxis = list( 
+#      title = "0"),  
+#    yaxis = list( 
+#      title = "1")) 
+#fig.umap.meta.notdenver
