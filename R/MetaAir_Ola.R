@@ -290,9 +290,41 @@ fig.umap.fungi.meta <- plot_ly(umap.fungi.meta.layout, x = ~X1, y = ~X2, color=~
 fig.umap.fungi.meta
 
 
+## TRY THIS ANALYSIS WITHOUT REMOVING CONTAMINANTS
+metaair_w_kitome <- read_tsv("/media/ubuntu/Pandora/METAAIR/AGGREGATED_0.005_.tsv",col_names=TRUE)
+metaair_w_kitome <- transpose_df(metaair_w_kitome)
+colnames(metaair_w_kitome) <- metaair_w_kitome[1,]
+metaair_w_kitome <- metaair_w_kitome[2:nrow(metaair_w_kitome),]
 
+metaair_taxa_names <- read_tsv("/media/ubuntu/Pandora/METAAIR/taxid_to_name_2023-11-07.tsv")
+translation_w_kitome <- metaair_taxa_names$name[match(colnames(metaair_w_kitome)[2:ncol(metaair_w_kitome)],metaair_taxa_names$taxonomy_id)]
+colnames(metaair_w_kitome) <-  c("sample",translation)
 
+metaair_w_kitome_norm <- normalize_TSS_OTU_data(metaair_w_kitome)
+metaair_w_kitome_log <- bind_cols(metaair_w_kitome_norm %>% select(sample), metaair_w_kitome_norm %>% select(where(is.numeric)) %>% mutate(log(.+1)))
+metaair_w_kitome_log_var <- drop_constant_cols(metaair_w_kitome_log)
 
+metaair_w_kitome_final <- metaair_w_kitome_log_var %>% filter(!(sample %in% CTRLS_METAAIR)) %>% filter(!(sample %in% FILTER))
+names(metaair_w_kitome_final)[1] <- "ID"
+
+umap.kitome.meta <- umap(metaair_w_kitome_final %>% select(where(is.numeric)),n_neighbors=8,min_dist=0.1)
+umap.kitome.meta.layout <- umap.kitome.meta[["layout"]] 
+umap.kitome.meta.layout <- data.frame(umap.kitome.meta.layout, "ID"=metaair_w_kitome_final %>% pull(ID)) # ID?
+umap.kitome.meta.layout <- inner_join(umap.kitome.meta.layout, metaair_meta_posremoved_negremoved_filtered)
+#umap.meta.layout <- cbind(umap.meta.layout, metaair_meta %>% filter (!(ID %in% CTRLS_METAAIR))) 
+
+fig.umap.kitome.meta <- plot_ly(umap.kitome.meta.layout, x = ~X1, y = ~X2, color=~CITY, symbol = ~YEAR, type = 'scatter', mode = 'markers', size=10,
+                             text = ~ID, hovertemplate=paste(
+                               "<b>%{text}</b><br><br>",
+                               "%{x}, %{y}")) %>% 
+  layout(
+    plot_bgcolor = "#e5ecf6",
+    legend=list(title=list(text='Sample type')), 
+    xaxis = list( 
+      title = "0"),  
+    yaxis = list( 
+      title = "1")) 
+fig.umap.kitome.meta
 
 # SAME ANALYSIS, BUT REMOVE FILTERED AND NON-UNDERGROUND
 # ONLY NEEDED FOR KARIS PROJECT
@@ -571,7 +603,18 @@ ggplot(metaair_final_meta_and_data_fungi, aes(x = factor(CITY,levels=level_order
             col = 'black',
             size = 5)
 
-
+# WITH KITOME
+metaair_final_meta_and_data_kitome <- inner_join(metaair_w_kitome_final,metaair_meta_posremoved_negremoved_filtered,by="ID")
+metaair_final_meta_and_data_kitome$shannondiv <- diversity(metaair_final_meta_and_data_kitome %>% select(2:4036)) #%>% filter (!(sample %in% CTRLS_METAAIR)) %>% select_if(is.numeric)
+anova_result_kitome <- aov(shannondiv ~ CITY, metaair_final_meta_and_data_kitome)
+tukey_result_kitome <- HSD.test(anova_result_kitome, "CITY", group = TRUE)
+group_data_kitome <- tukey_result_kitome$groups[order(rownames(tukey_result_kitome$groups)),]
+ggplot(metaair_final_meta_and_data_kitome, aes(x = factor(CITY,levels=level_order_city), y = shannondiv,color=YEAR)) + 
+  geom_boxplot() + ylab("Shannon diversity index") + xlab("City") +
+  geom_text(data = data.frame(),
+            aes(x = rownames(group_data_kitome), y = max(metaair_final_meta_and_data_kitome$shannondiv) + 0.5, label = group_data_kitome$groups),
+            col = 'black',
+            size = 5)
 
 ## STARTING TO WORK ON CORE DEFINITIONS
 
