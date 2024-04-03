@@ -1512,7 +1512,8 @@ getTopSpeciesCtrls <- function(df, N=20, Species=NULL,Samplename="",absolute=TRU
         select(-rowSums) %>%
         select(all_of(Species[1:20])) %>%
         unlist()
-      top_species_group <- c(top_species_group,df$rowSums)
+      othercounts <- df$rowSums - sum(top_species_group)
+      top_species_group <- c(top_species_group,othercounts)
       names(top_species_group)[length(top_species_group)] <- "Other"
       }
     else{
